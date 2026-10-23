@@ -1,32 +1,151 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DrySmart – IoT‑Based Smart Hostel Clothes Drying</title>
+  <title>DrySmart – IoT-Based Smart Hostel Clothes Drying & Energy Automation</title>
+  <meta name="description" content="DrySmart is an intelligent IoT-driven smart hostel clothes drying and energy conservation platform with real-time telemetry, automated climate controls, and warden analytics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
+  <!-- Ambient Moving Aurora Background -->
+  <div class="ambient-background" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="mesh-overlay"></div>
+  </div>
+
   <div class="app">
     <!-- Sidebar navigation -->
-    <nav class="sidebar" id="sidebar">
-      <h1 class="logo">DrySmart</h1>
-      <ul class="nav-list">
-        <li><a href="#" class="nav-link" data-page="student">Student Dashboard</a></li>
-        <li><a href="#" class="nav-link" data-page="warden">Warden Dashboard</a></li>
-        <li><a href="#" class="nav-link" data-page="rooms">Rooms</a></li>
-        <li><a href="#" class="nav-link" data-page="analytics">Energy Analytics</a></li>
-        <li><a href="#" class="nav-link" data-page="alerts">Alerts</a></li>
-        <li><a href="#" class="nav-link" data-page="settings">Settings</a></li>
-        <li><a href="#" class="nav-link" data-page="about">About DrySmart</a></li>
-      </ul>
-    </nav>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-header">
+        <div class="logo-mark">
+          <div class="logo-glow"></div>
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="logo">DrySmart</h1>
+          <span class="brand-badge">IoT Core 2.4</span>
+        </div>
+      </div>
 
-    <main class="content" id="content">
-      <!-- Dynamic page content will be injected here -->
-    </main>
+      <div class="nav-section-label">NAVIGATION</div>
+      <ul class="nav-list">
+        <li>
+          <a href="#overview" class="nav-link" data-page="overview" id="nav-overview">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Overview</span>
+          </a>
+        </li>
+        <li>
+          <a href="#student" class="nav-link" data-page="student" id="nav-student">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Student Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a href="#warden" class="nav-link" data-page="warden" id="nav-warden">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span>Warden Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a href="#rooms" class="nav-link" data-page="rooms" id="nav-rooms">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Rooms Telemetry</span>
+          </a>
+        </li>
+        <li>
+          <a href="#analytics" class="nav-link" data-page="analytics" id="nav-analytics">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            <span>Energy Analytics</span>
+          </a>
+        </li>
+        <li>
+          <a href="#alerts" class="nav-link" data-page="alerts" id="nav-alerts">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Alerts & Activity</span>
+            <span class="nav-alert-pill" id="sidebar-alert-pill">0</span>
+          </a>
+        </li>
+        <li>
+          <a href="#settings" class="nav-link" data-page="settings" id="nav-settings">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span>Automation Settings</span>
+          </a>
+        </li>
+        <li>
+          <a href="#about" class="nav-link" data-page="about" id="nav-about">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <span>About DrySmart</span>
+          </a>
+        </li>
+      </ul>
+
+      <!-- Real-time Gateway Telemetry Card -->
+      <div class="sidebar-telemetry-card">
+        <div class="telemetry-header">
+          <span class="live-dot pulse"></span>
+          <span class="telemetry-title">ESP32 MESH LINK</span>
+        </div>
+        <div class="telemetry-metrics">
+          <div class="metric-row">
+            <span>Signal RSSI:</span>
+            <strong class="text-emerald">-58 dBm</strong>
+          </div>
+          <div class="metric-row">
+            <span>Sync Latency:</span>
+            <strong>18 ms</strong>
+          </div>
+          <div class="metric-row">
+            <span>Nodes Active:</span>
+            <strong id="sidebar-node-count">8 / 8</strong>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+      <!-- Top Dynamic Header Bar -->
+      <header class="top-header">
+        <div class="header-left">
+          <div class="system-status-chip">
+            <span class="pulse-beacon"></span>
+            <span class="status-text">HOSTEL BLOCK A • SMART DRYING ACTIVE</span>
+          </div>
+          <div class="weather-chip">
+            <svg class="chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            <span>Ambient: 27.5°C • 64% RH</span>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <div class="live-clock" id="live-clock">--:--:--</div>
+          <!-- Theme Switcher -->
+          <button class="theme-toggle-btn" id="theme-toggle" title="Switch Theme (Dark / Light)">
+            <svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic Page Content -->
+      <main class="content" id="content">
+        <!-- Content will be injected by JavaScript -->
+      </main>
+    </div>
   </div>
+
+  <!-- Toast notification banner -->
+  <div class="toast-container" id="toast-container"></div>
 
   <script src="app.js"></script>
 </body>
