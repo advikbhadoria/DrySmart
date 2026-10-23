@@ -277,18 +277,17 @@ function initHeaderAndTheme() {
   updateClock();
 
   // Load saved theme
-  const savedTheme = localStorage.getItem('drysmart_theme') || 'dark';
+  const savedTheme = localStorage.getItem('drysmart_theme') || 'white-blue';
   document.documentElement.setAttribute('data-theme', savedTheme);
 
   const themeBtn = $('#theme-toggle');
   if (themeBtn) {
     themeBtn.addEventListener('click', () => {
       const current = document.documentElement.getAttribute('data-theme');
-      const nextTheme = current === 'dark' ? 'light' : 'dark';
+      const nextTheme = current === 'white-blue' ? 'ice-azure' : 'white-blue';
       document.documentElement.setAttribute('data-theme', nextTheme);
       localStorage.setItem('drysmart_theme', nextTheme);
-      showToast(`Switched to ${nextTheme === 'dark' ? 'Midnight Neon' : 'Aurora Frost'} theme`, 'info');
-      // Redraw chart if on analytics page
+      showToast(`Theme: ${nextTheme === 'white-blue' ? 'Crystal Blue Glass' : 'Ice Azure Glass'} active`, 'info');
       if (state.currentPage === 'analytics') {
         drawAnalyticsCharts();
       }
@@ -1397,15 +1396,14 @@ function drawAnalyticsCharts() {
     energyChart = null;
   }
 
-  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  const textColor = isDark ? '#94a3b8' : '#475569';
-  const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
+  const textColor = '#3b5a7a';
+  const gridColor = 'rgba(2, 132, 199, 0.08)';
 
-  // Create vertical gradient
+  // Create vertical gradient in rich azure and sky blues
   const gradient = ctx.createLinearGradient(0, 0, 0, 350);
-  gradient.addColorStop(0, 'rgba(0, 240, 255, 0.85)');
-  gradient.addColorStop(0.5, 'rgba(99, 102, 241, 0.7)');
-  gradient.addColorStop(1, 'rgba(168, 85, 247, 0.2)');
+  gradient.addColorStop(0, 'rgba(2, 132, 199, 0.85)');
+  gradient.addColorStop(0.5, 'rgba(14, 165, 233, 0.6)');
+  gradient.addColorStop(1, 'rgba(186, 230, 253, 0.25)');
 
   const labels = state.rooms.map((r) => r.number);
   const dataVals = state.rooms.map((r) => Number(r.energy.toFixed(3)));
@@ -1419,10 +1417,10 @@ function drawAnalyticsCharts() {
           label: 'Energy Consumed (kWh)',
           data: dataVals,
           backgroundColor: gradient,
-          borderColor: 'rgba(56, 189, 248, 1)',
+          borderColor: 'rgba(2, 132, 199, 1)',
           borderWidth: 2,
           borderRadius: 8,
-          hoverBackgroundColor: 'rgba(0, 240, 255, 0.95)',
+          hoverBackgroundColor: 'rgba(14, 165, 233, 0.95)',
         },
       ],
     },
@@ -1433,17 +1431,20 @@ function drawAnalyticsCharts() {
         legend: {
           display: true,
           labels: {
-            color: textColor,
-            font: { family: "'Plus Jakarta Sans', sans-serif", weight: '600' },
+            color: '#034674',
+            font: { family: "'Plus Jakarta Sans', sans-serif", weight: '700' },
           },
         },
         tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          titleColor: '#034674',
+          bodyColor: '#0c2340',
           titleFont: { family: "'Outfit', sans-serif", size: 14, weight: '700' },
-          bodyFont: { family: "'Plus Jakarta Sans', sans-serif", size: 12 },
-          borderColor: 'rgba(56, 189, 248, 0.4)',
-          borderWidth: 1,
+          bodyFont: { family: "'Plus Jakarta Sans', sans-serif", size: 12, weight: '600' },
+          borderColor: 'rgba(14, 165, 233, 0.4)',
+          borderWidth: 1.5,
           padding: 12,
+          boxPadding: 4,
           callbacks: {
             label: (ctx) => `Energy: ${ctx.parsed.y} kWh (₹${(ctx.parsed.y * 7.5).toFixed(2)})`,
           },
@@ -1454,13 +1455,13 @@ function drawAnalyticsCharts() {
           beginAtZero: true,
           suggestedMax: 4.5,
           grid: { color: gridColor },
-          ticks: { color: textColor },
-          title: { display: true, text: 'Energy (kWh)', color: textColor },
+          ticks: { color: textColor, font: { weight: '600' } },
+          title: { display: true, text: 'Energy (kWh)', color: '#034674', font: { weight: '700' } },
         },
         x: {
           grid: { display: false },
-          ticks: { color: textColor },
-          title: { display: true, text: 'Hostel Rooms', color: textColor },
+          ticks: { color: textColor, font: { weight: '600' } },
+          title: { display: true, text: 'Hostel Rooms', color: '#034674', font: { weight: '700' } },
         },
       },
     },
