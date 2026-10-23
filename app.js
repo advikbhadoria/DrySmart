@@ -45,6 +45,9 @@ function loadState() {
           parsed.alerts = fresh.alerts;
           parsed.rooms = fresh.rooms;
         }
+        if (parsed.currentPage === 'overview') {
+          parsed.currentPage = 'student';
+        }
         return parsed;
       }
     }
@@ -414,7 +417,7 @@ function setActivePage(page) {
 
 function renderCurrentPage() {
   const hashPage = window.location.hash ? window.location.hash.substring(1) : null;
-  const page = hashPage || state.currentPage || 'student';
+  const page = (hashPage && hashPage !== 'overview') ? hashPage : (state.currentPage && state.currentPage !== 'overview' ? state.currentPage : 'student');
   setActivePage(page);
 }
 
@@ -422,9 +425,6 @@ function renderCurrentPage() {
 function renderPage(page) {
   const content = $('#content');
   switch (page) {
-    case 'overview':
-      content.innerHTML = renderOverview();
-      break;
     case 'student':
       content.innerHTML = renderStudentDashboard();
       attachStudentEvents();
@@ -487,51 +487,7 @@ function statCard(title, value, unit = '', iconType = 'cyan', trendText = 'Real-
   `;
 }
 
-// ---------- Overview Page ----------
-function renderOverview() {
-  const totalRooms = state.rooms.length;
-  const occupied = state.rooms.filter((r) => r.occupied).length;
-  const activeDrying = state.rooms.filter((r) => r.drying).length;
-  const fansRunning = state.rooms.filter((r) => r.fanOn).length;
-  const totalEnergy = state.rooms.reduce((sum, r) => sum + r.energy, 0).toFixed(3);
-  const activeAlerts = state.alerts.filter((a) => !a.acknowledged).length;
-
-  return `
-    <section class="active">
-      <div class="page-header">
-        <div class="page-title-group">
-          <h2>Hostel IoT Overview</h2>
-          <p class="page-subtitle">Real-time status of connected drying chambers, occupancy, and energy conservation</p>
-        </div>
-      </div>
-
-      <div class="cards">
-        ${statCard('Total Smart Rooms', totalRooms, 'Chambers', 'cyan', '8 of 8 Online')}
-        ${statCard('Occupied Rooms', occupied, 'Active', 'purple', `${Math.round((occupied / totalRooms) * 100)}% Occupancy`)}
-        ${statCard('Active Drying Cycles', activeDrying, 'Chambers', 'amber', `${activeDrying} Heating & Ventilating`)}
-        ${statCard('Fans Running', fansRunning, 'Units', 'emerald', `${fansRunning} Active Exhauster`)}
-        ${statCard('Total Energy', totalEnergy, 'kWh', 'cyan', `Est. ₹${(totalEnergy * 7.5).toFixed(2)}`)}
-        ${statCard('Active Alerts', activeAlerts, 'Warnings', activeAlerts > 0 ? 'rose' : 'emerald', activeAlerts > 0 ? `${activeAlerts} Require Attention` : 'All Systems Normal', activeAlerts > 0 ? 'warning' : 'positive')}
-      </div>
-
-      <div class="card" style="margin-top: 1rem;">
-        <div class="control-header-row">
-          <div>
-            <h3>Active Drying Chambers Quick Telemetry</h3>
-            <p class="page-subtitle" style="margin-top: -0.8rem; margin-bottom: 1rem;">Live sensor readouts from DHT22 humidity & exhaust units</p>
-          </div>
-          <button class="btn secondary" onclick="setActivePage('student')">Open Student Chamber Controls →</button>
-        </div>
-
-        <div class="rooms-grid">
-          ${state.rooms.map((r) => renderMiniRoomCard(r)).join('')}
-        </div>
-      </div>
-    </section>
-  `;
-}
-
-// Mini Room Card for Overview and Warden Grid
+// Mini Room Card for Warden Grid
 function renderMiniRoomCard(r) {
   const hasAlert = state.alerts.some((a) => a.roomId === r.id && !a.acknowledged);
   const isSpinning = r.fanOn;
@@ -1727,13 +1683,9 @@ function renderAboutPage() {
 
 // ---------- UI Refresh (Lightweight In-place updates) ----------
 function refreshUI() {
-  const page = state.currentPage || 'overview';
+  const page = state.currentPage || 'student';
 
-  if (page === 'overview') {
-    // In-place updates for overview
-    const dryingPill = $('#active-drying-count');
-    if (dryingPill) dryingPill.textContent = state.rooms.filter((r) => r.drying).length;
-  } else if (page === 'student') {
+  if (page === 'student') {
     const select = $('#student-room-select');
     if (select && select.value) {
       const room = state.rooms.find((r) => r.id == select.value);
