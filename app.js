@@ -5,6 +5,10 @@
 // ---------- Utility Functions ----------
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+if (typeof globalThis !== 'undefined') {
+  globalThis.$ = $;
+  globalThis.$$ = $$;
+}
 
 function showToast(message, type = 'info') {
   const container = $('#toast-container');
@@ -27,6 +31,9 @@ function showToast(message, type = 'info') {
 }
 
 function saveState() {
+  if (typeof globalThis !== 'undefined') {
+    globalThis.state = state;
+  }
   try {
     localStorage.setItem('drysmart_state', JSON.stringify(state));
   } catch (e) {
@@ -48,6 +55,9 @@ function loadState() {
         if (parsed.currentPage === 'overview') {
           parsed.currentPage = 'student';
         }
+        if (!parsed.wardenSortKey) parsed.wardenSortKey = 'number';
+        if (parsed.wardenSortAsc === undefined) parsed.wardenSortAsc = true;
+        if (!parsed.selectedStudentRoomId) parsed.selectedStudentRoomId = 1;
         return parsed;
       }
     }
@@ -260,12 +270,18 @@ function generateInitialState() {
     },
     lastTick: now,
     wardenViewMode: 'grid', // 'grid' or 'table'
+    wardenSortKey: 'number',
+    wardenSortAsc: true,
+    selectedStudentRoomId: 1,
     selectedAlertFilter: 'all',
     selectedRoomsFilter: 'all',
   };
 }
 
 let state = loadState() || generateInitialState();
+if (typeof globalThis !== 'undefined') {
+  globalThis.state = state;
+}
 
 // ---------- Live Header Clock ----------
 function initHeaderClock() {
@@ -296,16 +312,23 @@ function tick() {
       room.moisture = Math.max(0, room.moisture - moistureDropRate * deltaSec);
 
       // Auto fan off when dry enough
-      if (room.fanMode === 'auto' && room.moisture <= 10) {
+      if (state.settings.autoFanWhenDry && room.fanMode === 'auto' && room.moisture <= 10) {
         room.fanOn = false;
         room.drying = false;
         addAlert(room.id, 'Cycle completed: 100% dry (Auto Fan Off)', 'info');
       }
+    }
 
-      // Auto light off when room vacant
-      if (room.lightMode === 'auto' && !room.occupied) {
-        room.lightOn = false;
-      }
+    // Auto fan shut-off if clothes already dry in auto mode
+    if (state.settings.autoFanWhenDry && room.fanMode === 'auto' && room.moisture <= 10 && room.fanOn) {
+      room.fanOn = false;
+      room.drying = false;
+    }
+
+    // Auto light off when room is vacant (runs regardless of drying state)
+    if (state.settings.autoLightWhenVacant && room.lightMode === 'auto' && !room.occupied && room.lightOn) {
+      room.lightOn = false;
+      addAlert(room.id, 'Light left ON in vacant room (auto shut-off executed)', 'info');
     }
 
     // Energy calculation (watts to kWh)
@@ -388,6 +411,7 @@ function initNavigation() {
       setActivePage(page);
     });
   });
+  window.addEventListener('popstate', renderCurrentPage);
 }
 
 function setActivePage(page) {
@@ -536,8 +560,12 @@ function renderMiniRoomCard(r) {
 
 // ---------- Student Dashboard & Interactive Chamber ----------
 function renderStudentDashboard() {
-  const occupiedRooms = state.rooms.filter((r) => r.occupied);
-  const options = occupiedRooms.map((r) => `<option value="${r.id}">${r.number} (${r.drying ? 'Drying' : 'Idle'})</option>`).join('');
+  const selectedId = state.selectedStudentRoomId || 1;
+  const options = state.rooms.map((r) => `
+    <option value="${r.id}" ${r.id == selectedId ? 'selected' : ''}>
+      ${r.number} ${!r.occupied ? '(Vacant)' : r.drying ? '(Drying • ' + r.moisture.toFixed(0) + '%)' : '(Idle)'}
+    </option>
+  `).join('');
 
   return `
     <section class="active">
@@ -563,13 +591,22 @@ function renderStudentDashboard() {
 function attachStudentEvents() {
   const select = $('#student-room-select');
   if (!select) return;
-  select.addEventListener('change', () => renderStudentRoom(select.value));
-  if (select.options.length) renderStudentRoom(select.value);
+  select.addEventListener('change', () => {
+    state.selectedStudentRoomId = Number(select.value);
+    saveState();
+    renderStudentRoom(select.value);
+  });
+  const currentId = state.selectedStudentRoomId || Number(select.value) || 1;
+  select.value = currentId;
+  renderStudentRoom(currentId);
 }
 
 function renderStudentRoom(roomId) {
   const room = state.rooms.find((r) => r.id == roomId);
   if (!room) return;
+  state.selectedStudentRoomId = room.id;
+  const select = $('#student-room-select');
+  if (select && select.value != room.id) select.value = room.id;
   const container = $('#student-room-view');
   if (!container) return;
 
@@ -682,7 +719,7 @@ function renderStudentRoom(roomId) {
               <h3>Drying Cycle Master Control</h3>
               <p class="page-subtitle" style="margin-top: -0.8rem;">Automated moisture sensing with safety shut-off</p>
             </div>
-            <span class="badge ${room.drying ? 'alert-info' : 'alert-success'}">
+            <span class="badge ${room.drying ? 'alert-info' : 'alert-success'}" id="cycle-status-badge">
               ${room.drying ? 'Ventilating & Heating' : 'Idle'}
             </span>
           </div>
@@ -779,6 +816,10 @@ function renderStudentRoom(roomId) {
 
   // Attach controls & actions
   $('#start-btn').onclick = () => {
+    if (room.moisture <= 10) {
+      room.moisture = 85.0;
+      room.elapsed = 0;
+    }
     room.drying = true;
     room.fanOn = true;
     room.startTimestamp = Date.now();
@@ -789,12 +830,18 @@ function renderStudentRoom(roomId) {
 
   $('#pause-btn').onclick = () => {
     room.drying = false;
+    if (room.fanMode === 'auto') {
+      room.fanOn = false;
+    }
     saveState();
     showToast(`Cycle paused for ${room.number}`, 'info');
     renderStudentRoom(room.id);
   };
 
   $('#resume-btn').onclick = () => {
+    if (room.moisture <= 10) {
+      room.moisture = 80.0;
+    }
     room.drying = true;
     room.fanOn = true;
     saveState();
@@ -803,6 +850,10 @@ function renderStudentRoom(roomId) {
   };
 
   $('#turbo-btn').onclick = () => {
+    if (room.moisture <= 10) {
+      room.moisture = 85.0;
+      room.elapsed = 0;
+    }
     room.drying = true;
     room.fanOn = true;
     room.fanSpeed = 3;
@@ -883,7 +934,29 @@ function renderWardenDashboard() {
   const totalEnergy = state.rooms.reduce((s, r) => s + r.energy, 0).toFixed(3);
   const activeAlerts = state.alerts.filter((a) => !a.acknowledged).length;
 
-  const rows = state.rooms.map((r) => {
+  const sortKey = state.wardenSortKey || 'number';
+  const sortAsc = state.wardenSortAsc !== false;
+  const sortedRooms = [...state.rooms].sort((a, b) => {
+    let valA = a[sortKey];
+    let valB = b[sortKey];
+    if (sortKey === 'number') {
+      valA = a.id;
+      valB = b.id;
+    } else if (sortKey === 'energy' || sortKey === 'moisture') {
+      valA = Number(valA);
+      valB = Number(valB);
+    } else if (typeof valA === 'boolean') {
+      valA = valA ? 1 : 0;
+      valB = valB ? 1 : 0;
+    }
+    if (valA < valB) return sortAsc ? -1 : 1;
+    if (valA > valB) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  const getSortIcon = (key) => (sortKey === key ? (sortAsc ? '▲' : '▼') : '⇅');
+
+  const rows = sortedRooms.map((r) => {
     const isSpinning = r.fanOn;
     const fanSpeedClass = r.fanSpeed === 3 ? 'speed-3' : r.fanSpeed === 2 ? 'speed-2' : 'speed-1';
     return `
@@ -895,12 +968,12 @@ function renderWardenDashboard() {
           </span>
         </td>
         <td>
-          <span style="font-weight: 700; color: ${r.moisture > 60 ? 'var(--cyan-primary)' : r.moisture > 15 ? 'var(--amber-glow)' : 'var(--emerald-glow)'}">
+          <span class="col-moisture" style="font-weight: 700; color: ${r.moisture > 60 ? 'var(--cyan-primary)' : r.moisture > 15 ? 'var(--amber-glow)' : 'var(--emerald-glow)'}">
             ${r.moisture.toFixed(1)}%
           </span>
         </td>
         <td>
-          <span style="display: flex; align-items: center; gap: 0.4rem;">
+          <span class="col-fan-status" style="display: flex; align-items: center; gap: 0.4rem;">
             <svg class="mini-fan-icon ${isSpinning ? 'spin ' + fanSpeedClass : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
             </svg>
@@ -908,11 +981,11 @@ function renderWardenDashboard() {
           </span>
         </td>
         <td>
-          <span style="color: ${r.lightOn ? '#fde047' : 'var(--text-dim)'}">
+          <span class="col-light-status" style="color: ${r.lightOn ? '#fde047' : 'var(--text-dim)'}">
             ${r.lightOn ? `ON (${r.brightness}%)` : 'OFF'}
           </span>
         </td>
-        <td><strong>${r.energy.toFixed(3)}</strong> kWh</td>
+        <td><strong class="col-energy">${r.energy.toFixed(3)}</strong> kWh</td>
         <td>
           ${state.alerts
             .filter((a) => a.roomId === r.id && !a.acknowledged)
@@ -953,10 +1026,38 @@ function renderWardenDashboard() {
       <div class="cards">
         ${statCard('Total Rooms', totalRooms, 'Chambers', 'cyan', '100% Online')}
         ${statCard('Occupancy', occupied, 'Residents', 'purple', `${Math.round((occupied / totalRooms) * 100)}% Occupancy`)}
-        ${statCard('Drying In Progress', activeDrying, 'Rooms', 'amber', `${activeDrying} Cycles Active`)}
-        ${statCard('Exhaust Fans Active', fansRunning, 'Fans', 'emerald', `${fansRunning} Consuming Power`)}
-        ${statCard('Total Power', totalEnergy, 'kWh', 'cyan', `Est. ₹${(totalEnergy * 7.5).toFixed(2)} Cost`)}
-        ${statCard('Active Alerts', activeAlerts, 'Warnings', activeAlerts > 0 ? 'rose' : 'emerald', activeAlerts > 0 ? `${activeAlerts} Need Review` : 'Safe State', activeAlerts > 0 ? 'warning' : 'positive')}
+        <div class="card">
+          <div class="stat-card-header">
+            <h3>Drying In Progress</h3>
+            <div class="stat-icon-wrapper amber"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>
+          </div>
+          <p id="warden-stat-drying">${activeDrying} <span class="stat-unit">Rooms</span></p>
+          <div class="stat-trend positive"><span>Live Cycles Active</span></div>
+        </div>
+        <div class="card">
+          <div class="stat-card-header">
+            <h3>Exhaust Fans Active</h3>
+            <div class="stat-icon-wrapper emerald"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          </div>
+          <p id="warden-stat-fans">${fansRunning} <span class="stat-unit">Fans</span></p>
+          <div class="stat-trend positive"><span>Consuming Power</span></div>
+        </div>
+        <div class="card">
+          <div class="stat-card-header">
+            <h3>Total Power</h3>
+            <div class="stat-icon-wrapper cyan"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          </div>
+          <p id="warden-stat-energy">${totalEnergy} <span class="stat-unit">kWh</span></p>
+          <div class="stat-trend positive"><span>Est. ₹${(totalEnergy * 7.5).toFixed(2)} Cost</span></div>
+        </div>
+        <div class="card">
+          <div class="stat-card-header">
+            <h3>Active Alerts</h3>
+            <div class="stat-icon-wrapper ${activeAlerts > 0 ? 'rose' : 'emerald'}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          </div>
+          <p id="warden-stat-alerts">${activeAlerts} <span class="stat-unit">Warnings</span></p>
+          <div class="stat-trend ${activeAlerts > 0 ? 'warning' : 'positive'}"><span>${activeAlerts > 0 ? `${activeAlerts} Need Review` : 'Safe State'}</span></div>
+        </div>
       </div>
 
       <!-- Master Batch Action Bar -->
@@ -989,12 +1090,12 @@ function renderWardenDashboard() {
             <table class="table" id="warden-table">
               <thead>
                 <tr>
-                  <th data-sort="number">Room ⇅</th>
-                  <th>Occupancy</th>
-                  <th>Moisture</th>
-                  <th>Fan Status</th>
-                  <th>Light Status</th>
-                  <th>Energy Consumed</th>
+                  <th data-sort="number" style="cursor: pointer;">Room ${getSortIcon('number')}</th>
+                  <th data-sort="occupied" style="cursor: pointer;">Occupancy ${getSortIcon('occupied')}</th>
+                  <th data-sort="moisture" style="cursor: pointer;">Moisture ${getSortIcon('moisture')}</th>
+                  <th data-sort="fanOn" style="cursor: pointer;">Fan Status ${getSortIcon('fanOn')}</th>
+                  <th data-sort="lightOn" style="cursor: pointer;">Light Status ${getSortIcon('lightOn')}</th>
+                  <th data-sort="energy" style="cursor: pointer;">Energy Consumed ${getSortIcon('energy')}</th>
                   <th>Active Alerts</th>
                   <th>Actions</th>
                 </tr>
@@ -1017,13 +1118,13 @@ function attachWardenEvents() {
   if (gridBtn && tableBtn) {
     gridBtn.onclick = () => {
       state.wardenViewMode = 'grid';
-      renderWardenDashboard();
-      attachWardenEvents();
+      saveState();
+      renderPage('warden');
     };
     tableBtn.onclick = () => {
       state.wardenViewMode = 'table';
-      renderWardenDashboard();
-      attachWardenEvents();
+      saveState();
+      renderPage('warden');
     };
   }
 
@@ -1040,8 +1141,7 @@ function attachWardenEvents() {
       });
       saveState();
       showToast(`Shut off exhaust fans in ${stopped} vacant rooms to save power!`, 'info');
-      renderWardenDashboard();
-      attachWardenEvents();
+      renderPage('warden');
     };
   }
 
@@ -1054,8 +1154,7 @@ function attachWardenEvents() {
       });
       saveState();
       showToast('All 8 rooms restored to Intelligent Eco-Auto Mode', 'info');
-      renderWardenDashboard();
-      attachWardenEvents();
+      renderPage('warden');
     };
   }
 
@@ -1080,8 +1179,7 @@ function attachWardenEvents() {
   const refreshBtn = $('#warden-refresh');
   if (refreshBtn) {
     refreshBtn.onclick = () => {
-      renderWardenDashboard();
-      attachWardenEvents();
+      renderPage('warden');
       showToast('Dashboard telemetry refreshed', 'info');
     };
   }
@@ -1095,9 +1193,23 @@ function attachWardenEvents() {
         room.fanOn = !room.fanOn;
         saveState();
         showToast(`${room.number} fan turned ${room.fanOn ? 'ON' : 'OFF'}`, 'info');
-        renderWardenDashboard();
-        attachWardenEvents();
+        renderPage('warden');
       }
+    };
+  });
+
+  // Table header sorting
+  $$('#warden-table th[data-sort]').forEach((th) => {
+    th.onclick = () => {
+      const key = th.dataset.sort;
+      if (state.wardenSortKey === key) {
+        state.wardenSortAsc = !state.wardenSortAsc;
+      } else {
+        state.wardenSortKey = key;
+        state.wardenSortAsc = true;
+      }
+      saveState();
+      renderPage('warden');
     };
   });
 
@@ -1105,12 +1217,8 @@ function attachWardenEvents() {
   $$('.view-details, .view-chamber-btn').forEach((btn) => {
     btn.onclick = () => {
       const id = Number(btn.dataset.id);
+      state.selectedStudentRoomId = id;
       setActivePage('student');
-      const select = $('#student-room-select');
-      if (select) {
-        select.value = id;
-        renderStudentRoom(id);
-      }
     };
   });
 }
@@ -1595,6 +1703,12 @@ function attachSettingsEvents() {
     saveState();
   };
   $('#save-settings-btn').onclick = () => {
+    const fanP = Number($('#setting-fan-power').value);
+    const lightP = Number($('#setting-light-power').value);
+    if (!isNaN(fanP) && fanP > 0) state.settings.fanPowerPerSpeed = fanP;
+    if (!isNaN(lightP) && lightP > 0) state.settings.lightPowerBase = lightP;
+    state.settings.autoFanWhenDry = $('#setting-auto-fan').checked;
+    state.settings.autoLightWhenVacant = $('#setting-auto-light').checked;
     saveState();
     showToast('Automation settings saved successfully', 'info');
   };
@@ -1687,12 +1801,15 @@ function refreshUI() {
           circle.style.stroke = room.moisture > 60 ? 'var(--cyan-glow)' : room.moisture > 20 ? 'var(--amber-glow)' : 'var(--emerald-glow)';
         }
 
-        // Update elapsed & remaining
+        // Update elapsed & remaining (remaining time to <= 10% dry threshold)
         const elapsedVal = $('#chamber-elapsed-val');
         if (elapsedVal) elapsedVal.textContent = `${Math.floor(room.elapsed)}s / ${room.estimatedTotal}s`;
 
         const remainingVal = $('#chamber-remaining-val');
-        if (remainingVal) remainingVal.textContent = `${Math.max(0, Math.round(room.moisture / 0.25))}s`;
+        if (remainingVal) {
+          const remainingSec = room.drying ? Math.max(0, Math.round(Math.max(0, room.moisture - 10) / 0.25)) : 0;
+          remainingVal.textContent = `${remainingSec}s`;
+        }
 
         const energyVal = $('#chamber-energy-val');
         if (energyVal) energyVal.textContent = `${room.energy.toFixed(3)} kWh`;
@@ -1701,12 +1818,91 @@ function refreshUI() {
         const steam = $('.steam-emitter');
         if (steam) steam.classList.toggle('active', room.drying);
 
-        // Update fan spinning
+        // Update fan spinning & wind streams
         const fanSvg = $('.fan-blades-svg');
         if (fanSvg) {
           fanSvg.className = `fan-blades-svg ${room.fanOn ? 'fan-spinning ' + (room.fanSpeed === 3 ? 'speed-3' : room.fanSpeed === 2 ? 'speed-2' : 'speed-1') : ''}`;
         }
+        const wind = $('.wind-streams');
+        if (wind) wind.classList.toggle('active', room.fanOn);
+
+        // Update chamber light glow
+        const glow = $('.chamber-light-glow');
+        if (glow) {
+          glow.classList.toggle('active', room.lightOn);
+          glow.style.setProperty('--light-intensity', room.brightness / 100);
+        }
+
+        // Update status badges
+        const statusBadge = $('.chamber-status-bar .badge');
+        if (statusBadge) {
+          statusBadge.className = `badge ${room.drying ? 'alert-info' : 'alert-success'}`;
+          statusBadge.textContent = room.drying ? 'Drying in Progress' : 'Optimal Dry';
+        }
+        const cycleBadge = $('#cycle-status-badge');
+        if (cycleBadge) {
+          cycleBadge.className = `badge ${room.drying ? 'alert-info' : 'alert-success'}`;
+          cycleBadge.textContent = room.drying ? 'Ventilating & Heating' : 'Idle';
+        }
+
+        // Keep hardware switches in sync with auto shut-offs
+        const fanToggle = $('#fan-toggle');
+        if (fanToggle && fanToggle.checked !== room.fanOn) {
+          fanToggle.checked = room.fanOn;
+        }
+        const lightToggle = $('#light-toggle');
+        if (lightToggle && lightToggle.checked !== room.lightOn) {
+          lightToggle.checked = room.lightOn;
+        }
+        $$('.segmented-option').forEach((opt) => {
+          opt.classList.toggle('active', Number(opt.dataset.speed) === room.fanSpeed);
+        });
       }
+    }
+  } else if (page === 'warden') {
+    const activeDrying = state.rooms.filter((r) => r.drying).length;
+    const fansRunning = state.rooms.filter((r) => r.fanOn).length;
+    const totalEnergy = state.rooms.reduce((s, r) => s + r.energy, 0).toFixed(3);
+    const activeAlerts = state.alerts.filter((a) => !a.acknowledged).length;
+
+    const dryingStat = $('#warden-stat-drying');
+    if (dryingStat) dryingStat.innerHTML = `${activeDrying} <span class="stat-unit">Rooms</span>`;
+    const fansStat = $('#warden-stat-fans');
+    if (fansStat) fansStat.innerHTML = `${fansRunning} <span class="stat-unit">Fans</span>`;
+    const energyStat = $('#warden-stat-energy');
+    if (energyStat) energyStat.innerHTML = `${totalEnergy} <span class="stat-unit">kWh</span>`;
+    const alertsStat = $('#warden-stat-alerts');
+    if (alertsStat) alertsStat.innerHTML = `${activeAlerts} <span class="stat-unit">Warnings</span>`;
+
+    // Real-time table row updates
+    if (state.wardenViewMode === 'table') {
+      state.rooms.forEach((r) => {
+        const row = $(`#warden-table tr[data-id="${r.id}"]`);
+        if (row) {
+          const moistureEl = row.querySelector('.col-moisture');
+          if (moistureEl) {
+            moistureEl.textContent = `${r.moisture.toFixed(1)}%`;
+            moistureEl.style.color = r.moisture > 60 ? 'var(--cyan-primary)' : r.moisture > 15 ? 'var(--amber-glow)' : 'var(--emerald-glow)';
+          }
+          const energyEl = row.querySelector('.col-energy');
+          if (energyEl) energyEl.textContent = r.energy.toFixed(3);
+          const fanStatusEl = row.querySelector('.col-fan-status');
+          if (fanStatusEl) {
+            const fanSpeedClass = r.fanSpeed === 3 ? 'speed-3' : r.fanSpeed === 2 ? 'speed-2' : 'speed-1';
+            fanStatusEl.innerHTML = `
+              <svg class="mini-fan-icon ${r.fanOn ? 'spin ' + fanSpeedClass : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+              </svg>
+              ${r.fanOn ? `Speed ${r.fanSpeed}` : 'OFF'}
+            `;
+          }
+          const lightStatusEl = row.querySelector('.col-light-status');
+          if (lightStatusEl) {
+            lightStatusEl.style.color = r.lightOn ? '#fde047' : 'var(--text-dim)';
+            lightStatusEl.textContent = r.lightOn ? `ON (${r.brightness}%)` : 'OFF';
+          }
+        }
+      });
     }
   } else if (page === 'analytics') {
     if (energyChart && $('#energyChart')) {
@@ -1733,6 +1929,14 @@ function initApp() {
   initNavigation();
   updateAlertPill();
   renderCurrentPage();
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.tick = tick;
+  globalThis.renderPage = renderPage;
+  globalThis.renderStudentRoom = renderStudentRoom;
+  globalThis.renderCurrentPage = renderCurrentPage;
+  globalThis.saveState = saveState;
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
