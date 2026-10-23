@@ -267,8 +267,8 @@ function generateInitialState() {
 
 let state = loadState() || generateInitialState();
 
-// ---------- Live Header Clock & Theme ----------
-function initHeaderAndTheme() {
+// ---------- Live Header Clock ----------
+function initHeaderClock() {
   const clockEl = $('#live-clock');
   function updateClock() {
     if (clockEl) {
@@ -279,23 +279,8 @@ function initHeaderAndTheme() {
   setInterval(updateClock, 1000);
   updateClock();
 
-  // Load saved theme
-  const savedTheme = localStorage.getItem('drysmart_theme') || 'white-blue';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-
-  const themeBtn = $('#theme-toggle');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const nextTheme = current === 'white-blue' ? 'ice-azure' : 'white-blue';
-      document.documentElement.setAttribute('data-theme', nextTheme);
-      localStorage.setItem('drysmart_theme', nextTheme);
-      showToast(`Theme: ${nextTheme === 'white-blue' ? 'Crystal Blue Glass' : 'Ice Azure Glass'} active`, 'info');
-      if (state.currentPage === 'analytics') {
-        drawAnalyticsCharts();
-      }
-    });
-  }
+  // Enforce white and blue glass theme
+  document.documentElement.setAttribute('data-theme', 'white-blue');
 }
 
 // ---------- Simulation Loop ----------
@@ -1744,7 +1729,7 @@ function refreshUI() {
 
 // ---------- Initialization ----------
 function initApp() {
-  initHeaderAndTheme();
+  initHeaderClock();
   initNavigation();
   updateAlertPill();
   renderCurrentPage();
